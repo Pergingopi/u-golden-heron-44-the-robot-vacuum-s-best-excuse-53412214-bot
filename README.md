@@ -12,7 +12,7 @@ A deterministic program that writes one line — the funniest one-line excuse a 
 python3 main.py
 ```
 
-The program reads `$MAKEFUN_OUTPUT_DIR` (falling back to `/output`), validates the line against the gate (UTF-8, 1–140 characters, one line, not whitespace-only, no trailing newline), writes it atomically via a mkstemp temp file with a full-write loop and fsync, and verifies the written bytes by reading them back.
+The program reads `$MAKEFUN_OUTPUT_DIR` (falling back to `/output`), validates the line against the gate (UTF-8, 1–140 characters, one line, not whitespace-only, no trailing newline), clears any stale `.entry-*` temp files a killed earlier run left behind, writes it atomically via a mkstemp temp file with a full-write loop and fsync, and verifies the written bytes by reading them back.
 
 ---
 

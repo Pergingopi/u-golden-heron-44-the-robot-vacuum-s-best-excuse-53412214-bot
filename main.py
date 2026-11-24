@@ -66,6 +66,32 @@ def _write_all(fd: int, data: bytes) -> None:
         view = view[written:]
 
 
+def _clean_stale_temps(out_dir: str) -> None:
+    """Remove stale temp files left by a killed earlier run.
+
+    Only entries our own mkstemp prefix (``.entry-``) creates are removed,
+    and only regular files/symlinks -- never directories and never anything
+    the grader or another program placed in the output directory. Each
+    removal is best-effort: a failure to unlink one stale file must not
+    fail the run, since mkstemp would simply pick a fresh name anyway.
+    This keeps the output directory clean so a run that was killed
+    mid-write leaves no litter behind for the next run (or the grader).
+    """
+    try:
+        entries = list(os.scandir(out_dir))
+    except OSError:
+        return
+    for entry in entries:
+        if not entry.name.startswith(".entry-"):
+            continue
+        try:
+            if entry.is_dir(follow_symlinks=False):
+                continue
+            os.unlink(entry.path)
+        except OSError:
+            pass
+
+
 def _write_atomic(target: str, data: bytes) -> None:
     """Write data to target via a temp file in the same directory.
 
@@ -73,9 +99,9 @@ def _write_atomic(target: str, data: bytes) -> None:
     written with a _write_all loop, fsynced, chmodded, and atomically
     renamed over the target. On any failure the temp file is unlinked in
     a finally block so a stale temp can never linger for the next run;
-    a leftover stale temp from a killed earlier run is harmless because
-    mkstemp always picks a fresh name, and the rename is retried once
-    if it is interrupted.
+    a leftover stale temp from a killed earlier run is removed at the
+    start of the next run by _clean_stale_temps, and the rename is
+    retried once if it is interrupted.
     """
     out_dir = os.path.dirname(target) or "."
     fd = None
@@ -114,6 +140,8 @@ def main() -> int:
     out_dir = _output_dir()
     # Never delete the output directory itself: the grader mounts it.
     os.makedirs(out_dir, exist_ok=True)
+    # Drop temp litter from a run killed mid-write, before writing ours.
+    _clean_stale_temps(out_dir)
 
     target = os.path.join(out_dir, OUTPUT_NAME)
     _write_atomic(target, data)
